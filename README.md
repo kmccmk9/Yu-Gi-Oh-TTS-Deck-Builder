@@ -6,7 +6,7 @@ I built this software because I couldn't find a solution existing for building a
 
 ## Where do I get it?
 
-This software is compatible with Windows 10 devices, search the Microsoft Store for "Yu-Gi-Oh TTS Deck Builder" or click here.
+This software is compatible with Windows 10 devices, search the Microsoft Store for "Yu-Gi-Oh TTS Deck Builder" or [click here](https://www.microsoft.com/en-us/p/yu-gi-oh-tts-deck-builder/9n7l9stf64v3).
 
 ## How do I use it?
 
