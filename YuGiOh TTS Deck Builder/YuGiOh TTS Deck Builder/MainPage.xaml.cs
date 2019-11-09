@@ -10,6 +10,7 @@ using Windows.Foundation;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
+using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
@@ -32,6 +33,8 @@ namespace YuGiOh_TTS_Deck_Builder
         public MainPage()
         {
             this.InitializeComponent();
+            ApplicationView.PreferredLaunchViewSize = new Size(480, 200);
+            ApplicationView.PreferredLaunchWindowingMode = ApplicationViewWindowingMode.PreferredLaunchViewSize;
         }
 
         private async void btnDeckBrowse_Click(object sender, RoutedEventArgs e)
@@ -177,6 +180,13 @@ namespace YuGiOh_TTS_Deck_Builder
             workingRing.IsActive = false;
             MainContent.Visibility = Visibility.Visible;
             Overlay.Visibility = Visibility.Collapsed;
+        }
+
+        private async void btnHelp_Click(object sender, RoutedEventArgs e)
+        {
+            string uriToLaunch = @"https://github.com/kmccmk9/Yu-Gi-Oh-TTS-Deck-Builder";
+            Uri uri = new Uri(uriToLaunch);
+            await Windows.System.Launcher.LaunchUriAsync(uri);
         }
 
         /// <summary>
@@ -444,7 +454,8 @@ namespace YuGiOh_TTS_Deck_Builder
         /// <summary>
         /// Enum for tracking which part of the YDK we're reading through
         /// </summary>
-        private enum YDKParts {
+        private enum YDKParts
+        {
             main,
             extra,
             side
