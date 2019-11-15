@@ -67,6 +67,18 @@ namespace YuGiOh_TTS_Deck_Builder
 
         private async void btnProcess_Click(object sender, RoutedEventArgs e)
         {
+            // Ensure YDK File, and output file have been specified
+            if (_fileDeckYDK == null || _fileDeckOutput == null)
+            {
+                ContentDialog fileNotSpecified = new ContentDialog {
+                    Title = "File Not Specified",
+                    Content = "You must specify both a YDK file and your output filename.",
+                    CloseButtonText = "Acknowledge"
+                };
+                await fileNotSpecified.ShowAsync();
+                return;
+            }
+
             // Show working ring and prevent users from using the applicaton.
             MainContent.Visibility = Visibility.Collapsed;
             Overlay.Visibility = Visibility.Visible;
