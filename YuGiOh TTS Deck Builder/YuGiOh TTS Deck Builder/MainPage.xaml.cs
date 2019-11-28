@@ -10,6 +10,7 @@ using Windows.Foundation;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
+using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
@@ -32,6 +33,8 @@ namespace YuGiOh_TTS_Deck_Builder
         public MainPage()
         {
             this.InitializeComponent();
+            ApplicationView.PreferredLaunchViewSize = new Size(480, 200);
+            ApplicationView.PreferredLaunchWindowingMode = ApplicationViewWindowingMode.PreferredLaunchViewSize;
         }
 
         private async void btnDeckBrowse_Click(object sender, RoutedEventArgs e)
@@ -64,10 +67,20 @@ namespace YuGiOh_TTS_Deck_Builder
 
         private async void btnProcess_Click(object sender, RoutedEventArgs e)
         {
-            // Show working ring and prevent users from using the applicaton.
-            MainContent.Visibility = Visibility.Collapsed;
-            Overlay.Visibility = Visibility.Visible;
-            workingRing.IsActive = true;
+            // Ensure YDK File, and output file have been specified
+            if (_fileDeckYDK == null || _fileDeckOutput == null)
+            {
+                ContentDialog fileNotSpecified = new ContentDialog {
+                    Title = "File Not Specified",
+                    Content = "You must specify both a YDK file and your output filename.",
+                    CloseButtonText = "Acknowledge"
+                };
+                await fileNotSpecified.ShowAsync();
+                return;
+            }
+
+            // Show working ring
+            enableWorkingRing();
 
             // Read YDK into list of lines.
             IList<string> strYDKLines = await Windows.Storage.FileIO.ReadLinesAsync(_fileDeckYDK);
@@ -78,7 +91,7 @@ namespace YuGiOh_TTS_Deck_Builder
             List<string> strSideDeckCards = new List<string>();
 
             // Main deck is first in the YDK file.
-            YDKParts currentPart = YDKParts.main;
+            YDKParts currentPart = YDKParts.unknown;
             for (int i = 0; i < strYDKLines.Count; i++)
             {
                 string strCurrentLine = strYDKLines[i];
@@ -132,39 +145,56 @@ namespace YuGiOh_TTS_Deck_Builder
             // Url for card back picture:
             const string strBackCard = "https://i.imgur.com/ubLQ2p2.jpg";
 
+            // Local booleans to hold whether we have parsed cards for each deck
+            bool blnHaveMainDeck = strMainDeckCards.Count > 0;
+            bool blnHaveExtraDeck = strExtraDeckCards.Count > 0;
+            bool blnHaveSideDeck = strSideDeckCards.Count > 0;
+
+            if (!blnHaveMainDeck && !blnHaveExtraDeck && !blnHaveSideDeck)
+            {
+                ContentDialog noCards = new ContentDialog
+                {
+                    Title = "No Cards Found",
+                    Content = "We could not find any cards with the YGO Pro deck you provided. Please check your file and try again.",
+                    CloseButtonText = "Acknowledge"
+                };
+                await noCards.ShowAsync();
+
+                // Turn off working ring
+                disableWorkingRing();
+                return;
+            }
+
             // Create new empty TTS object that will be the correct output format for TTS.
             TTS tts = new TTS();
-            
-            // Generate WriteableBitmaps for each deck.
-            WriteableBitmap mainDeckBitmap = await generateWriteableBitmapForDeck(strMainDeckCards);
-            WriteableBitmap extraDeckBitmap = await generateWriteableBitmapForDeck(strExtraDeckCards);
-            WriteableBitmap sideDeckBitmap = await generateWriteableBitmapForDeck(strSideDeckCards);
 
-            // Get list of card names for each deck.
-            List<string> mainDeckCardNames = await generateCardNamesForDeck(strMainDeckCards);
-            List<string> extraDeckCardNames = await generateCardNamesForDeck(strExtraDeckCards);
-            List<string> sideDeckCardNames = await generateCardNamesForDeck(strSideDeckCards);
-
-            // Upload WriteableBitmaps to Imgur and save their direct urls (requires Imgur API).
-            string mainDeckUrl = await uploadPhotoToImgur(mainDeckBitmap);
-            string extraDeckUrl = await uploadPhotoToImgur(extraDeckBitmap);
-            string sideDeckUrl = await uploadPhotoToImgur(sideDeckBitmap);
-
-            // Get the number of rows and columns that are in the WriteableBitmap.
-            Tuple<int, int> mainDeckSize = getDeckSize(strMainDeckCards);
-            Tuple<int, int> extraDeckSize = getDeckSize(strExtraDeckCards);
-            Tuple<int, int> sideDeckSize = getDeckSize(strSideDeckCards);
-
-            // Build out ObjectState objects for each deck.
-            ObjectState mainDeckObjectState = buildObjectState(strMainDeckCards, mainDeckSize, mainDeckUrl, strBackCard, mainDeckCardNames, 1);
-            ObjectState extraDeckObjectState = buildObjectState(strExtraDeckCards, extraDeckSize, extraDeckUrl, strBackCard, extraDeckCardNames, 2);
-            ObjectState sideDeckObjectState = buildObjectState(strSideDeckCards, sideDeckSize, sideDeckUrl, strBackCard, sideDeckCardNames, 3);
-
-            // Add ObjectState objects to TTS object.
+            // Start empty ObjectStates List to hold our decks.
             tts.ObjectStates = new List<ObjectState>();
-            tts.ObjectStates.Add(mainDeckObjectState);
-            tts.ObjectStates.Add(extraDeckObjectState);
-            tts.ObjectStates.Add(sideDeckObjectState);
+
+            if (blnHaveMainDeck)
+            {
+                // Generate Deck
+                ObjectState mainDeckObjectState = await generateDeck(strMainDeckCards, strBackCard);
+                
+                // Add ObjectState object to TTS object.
+                tts.ObjectStates.Add(mainDeckObjectState);
+            }
+            if (blnHaveExtraDeck)
+            {
+                // Generate Deck
+                ObjectState extraDeckObjectState = await generateDeck(strExtraDeckCards, strBackCard);
+
+                // Add ObjectState object to TTS object.
+                tts.ObjectStates.Add(extraDeckObjectState);
+            }
+            if (blnHaveSideDeck)
+            {
+                // Generate Deck
+                ObjectState sideDeckObjectState = await generateDeck(strSideDeckCards, strBackCard);
+
+                // Add ObjectState object to TTS object.
+                tts.ObjectStates.Add(sideDeckObjectState);
+            }
 
             // Convert TTS object to JSON and write to the disk.
             await Windows.Storage.FileIO.WriteTextAsync(_fileDeckOutput, JsonConvert.SerializeObject(tts, Newtonsoft.Json.Formatting.None,
@@ -173,10 +203,15 @@ namespace YuGiOh_TTS_Deck_Builder
                                 NullValueHandling = NullValueHandling.Ignore
                             }));
 
-            // Hide working ring and allow users to use the applicaton.
-            workingRing.IsActive = false;
-            MainContent.Visibility = Visibility.Visible;
-            Overlay.Visibility = Visibility.Collapsed;
+            // Turn off working ring
+            disableWorkingRing();
+        }
+
+        private async void btnHelp_Click(object sender, RoutedEventArgs e)
+        {
+            string uriToLaunch = @"https://github.com/kmccmk9/Yu-Gi-Oh-TTS-Deck-Builder";
+            Uri uri = new Uri(uriToLaunch);
+            await Windows.System.Launcher.LaunchUriAsync(uri);
         }
 
         /// <summary>
@@ -442,12 +477,62 @@ namespace YuGiOh_TTS_Deck_Builder
         }
 
         /// <summary>
+        /// Method that will generate an ObjectState for the provided deck information.
+        /// </summary>
+        /// <param name="deckCardIds">List of strings representing card Ids.</param>
+        /// <param name="strBackCard">Direct image url representing the back of the card.</param>
+        /// <returns>A ObjectState representing the deck.</returns>
+        private async Task<ObjectState> generateDeck(List<string> deckCardIds, string strBackCard)
+        {
+            // Generate WriteableBitmaps for deck.
+            WriteableBitmap deckBitmap = await generateWriteableBitmapForDeck(deckCardIds);
+
+            // Get list of card names for deck.
+            List<string> deckCardNames = await generateCardNamesForDeck(deckCardIds);
+
+            // Upload WriteableBitmaps to Imgur and save their direct urls (requires Imgur API).
+            string deckUrl = await uploadPhotoToImgur(deckBitmap);
+
+            // Get the number of rows and columns that are in the WriteableBitmap.
+            Tuple<int, int> deckSize = getDeckSize(deckCardIds);
+
+            // Build out ObjectState objects for deck.
+            ObjectState deckObjectState = buildObjectState(deckCardIds, deckSize, deckUrl, strBackCard, deckCardNames, 1);
+
+            return deckObjectState;
+        }
+
+        /// <summary>
+        /// Shows working ring and prevents user from using the application.
+        /// </summary>
+        private void enableWorkingRing()
+        {
+            // Hide MainContent and show Overlay
+            MainContent.Visibility = Visibility.Collapsed;
+            Overlay.Visibility = Visibility.Visible;
+            workingRing.IsActive = true;
+        }
+
+        /// <summary>
+        /// Hides working ring and allows user to use the application.
+        /// </summary>
+        private void disableWorkingRing()
+        {
+            // Show MainContent and hide Overaly
+            workingRing.IsActive = false;
+            MainContent.Visibility = Visibility.Visible;
+            Overlay.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>
         /// Enum for tracking which part of the YDK we're reading through
         /// </summary>
-        private enum YDKParts {
+        private enum YDKParts
+        {
             main,
             extra,
-            side
+            side,
+            unknown
         }
     }
 }

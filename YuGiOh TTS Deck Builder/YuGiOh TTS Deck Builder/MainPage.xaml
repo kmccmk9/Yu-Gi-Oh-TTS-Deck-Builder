@@ -5,6 +5,7 @@
     xmlns:local="using:YuGiOh_TTS_Deck_Builder"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:fa="using:FontAwesome.UWP"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
     <Grid x:Name="LayoutRoot">
@@ -55,6 +56,11 @@
                 <TextBlock x:Name="txtDeckSavePath" Text="" Grid.Row="2" Margin="10,0,0,0" Grid.Column="2" Width="Auto" Grid.ColumnSpan="2" VerticalAlignment="Center" />
             </Grid>
             <Button x:Name="btnProcess" Content="Process" Grid.Row="5" Click="btnProcess_Click" VerticalAlignment="Center" Grid.ColumnSpan="2" />
+            <Button x:Name="btnHelp" Grid.Row="5" Grid.Column="2" Width="Auto" Grid.ColumnSpan="2" VerticalAlignment="Center" Background="Transparent" Click="btnHelp_Click">
+                <Button.Content>
+                    <fa:FontAwesome Icon="QuestionCircle" Grid.Row="5" Grid.Column="2" Width="Auto" Grid.ColumnSpan="2" VerticalAlignment="Bottom" />
+                </Button.Content>
+            </Button>
         </Grid>
     </Grid>
 </Page>
