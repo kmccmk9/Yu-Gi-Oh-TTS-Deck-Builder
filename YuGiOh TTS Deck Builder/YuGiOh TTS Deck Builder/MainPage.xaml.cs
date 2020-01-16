@@ -79,6 +79,20 @@ namespace YuGiOh_TTS_Deck_Builder
                 return;
             }
 
+            //ensure that a network connection is available
+            var networkAvailable = NetworkInterface.GetIsNetworkAvailable();
+            if (!networkAvailable)
+            {
+                ContentDialog networkConnectionNotAvailable = new ContentDialog
+                {
+                    Title = "No Network Connection",
+                    Content = "An active network connection is required to process.",
+                    CloseButtonText = "Acknowledge"
+                };
+                await networkConnectionNotAvailable.ShowAsync();
+                return;
+            }
+
             // Show working ring
             enableWorkingRing();
 
