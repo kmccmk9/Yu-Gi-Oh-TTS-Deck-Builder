@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
+using System.Net.NetworkInformation;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Windows.Foundation;
@@ -28,7 +29,6 @@ namespace YuGiOh_TTS_Deck_Builder
 
         // ID and Secret from Enviornment Variables for Imgur.
         private const string _imgur_client_id = "";
-        private const string _imgur_client_secret = "";
 
         public MainPage()
         {
@@ -76,6 +76,20 @@ namespace YuGiOh_TTS_Deck_Builder
                     CloseButtonText = "Acknowledge"
                 };
                 await fileNotSpecified.ShowAsync();
+                return;
+            }
+
+            //ensure that a network connection is available
+            var networkAvailable = NetworkInterface.GetIsNetworkAvailable();
+            if (!networkAvailable)
+            {
+                ContentDialog networkConnectionNotAvailable = new ContentDialog
+                {
+                    Title = "No Network Connection",
+                    Content = "An active network connection is required to process.",
+                    CloseButtonText = "Acknowledge"
+                };
+                await networkConnectionNotAvailable.ShowAsync();
                 return;
             }
 
@@ -230,12 +244,13 @@ namespace YuGiOh_TTS_Deck_Builder
             List<int> cardIds = new List<int>();
 
             // This is required per TTS json requirements.
-            int intCardCounter = 100 * intCustomDeckId;
+            // Start at Deck number * 100. We must subtract one because we increment before adding to account for duplicates.
+            int intCardCounter = (100 * intCustomDeckId) - 1;
 
             // Iterate of card Ids.
             for (int i = 0; i < strDeckIds.Count; i++)
             {
-                string cardId = strDeckIds[i];
+             	 string cardId = strDeckIds[i];
                 if (i > 0 && strDeckIds[i-1] == cardId)
                 {
                     // Use the same Card Id without incrementing if the card is already on the list.
@@ -244,13 +259,10 @@ namespace YuGiOh_TTS_Deck_Builder
                 else
                 {
                     // Add the Card Id to the list and increment counter.
-                    cardIds.Add(intCardCounter);
                     intCardCounter++;
+                    cardIds.Add(intCardCounter);
                 }
             }
-            
-            // List of integer representing the unique card Ids.
-            List<int> uniqueCardIds = cardIds.Distinct().ToList();
 
             // Populate ObjectState object
             ObjectState objectState = new ObjectState()
@@ -295,9 +307,9 @@ namespace YuGiOh_TTS_Deck_Builder
             }
 
             // Add unique card Ids to the ContainedObjects list.
-            for (int i = 0; i < uniqueCardIds.Count; i++)
+            for (int i = 0; i < cardIds.Count; i++)
             {
-                int cardId = uniqueCardIds[i];
+                int cardId = cardIds[i];
                 string cardName = "Card";
                 string cardNickname = strCardNames[i];
                 objectState.ContainedObjects.Add(new ContainedObject() { CardID = cardId, Name = cardName, Nickname = cardNickname, Transform = new ContainedObjectTransform() });

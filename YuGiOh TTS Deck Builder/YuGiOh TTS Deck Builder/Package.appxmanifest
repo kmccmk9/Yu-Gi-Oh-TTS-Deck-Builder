@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" IgnorableNamespaces="uap mp">
-  <Identity Name="23799KyleCorsi.Yu-Gi-OhTTSDeckBuilder" Publisher="CN=9A3E7E04-09CD-470A-BBA6-5BB40E83DC62" Version="1.1.3.0" />
+  <Identity Name="23799KyleCorsi.Yu-Gi-OhTTSDeckBuilder" Publisher="CN=9A3E7E04-09CD-470A-BBA6-5BB40E83DC62" Version="1.1.5.0" />
   <mp:PhoneIdentity PhoneProductId="2ca41c6b-c7da-4f89-810b-daad2d3f67d3" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties>
     <DisplayName>Yu-Gi-Oh TTS Deck Builder</DisplayName>
