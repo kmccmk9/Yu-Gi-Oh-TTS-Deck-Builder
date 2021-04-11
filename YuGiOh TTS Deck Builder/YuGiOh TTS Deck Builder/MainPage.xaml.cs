@@ -389,7 +389,8 @@ namespace YuGiOh_TTS_Deck_Builder
                         if (message.IsSuccessStatusCode)
                         {
                             // Read HTTP POST response into the Imgur object.
-                            Imgur imgurResponse = JsonConvert.DeserializeObject<Imgur>(await message.Content.ReadAsStringAsync());
+                            string jsonString = await message.Content.ReadAsStringAsync();
+                            Imgur imgurResponse = JsonConvert.DeserializeObject<Imgur>(jsonString, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
                             return imgurResponse.data.link;
                         }
