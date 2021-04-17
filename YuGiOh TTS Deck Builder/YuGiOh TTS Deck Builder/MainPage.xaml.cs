@@ -199,6 +199,7 @@ namespace YuGiOh_TTS_Deck_Builder
             {
                 // Generate Deck
                 ObjectState extraDeckObjectState = await generateDeck(strExtraDeckCards, strBackCard);
+                extraDeckObjectState.Transform.posX = -4;
 
                 // Add ObjectState object to TTS object.
                 tts.ObjectStates.Add(extraDeckObjectState);
@@ -207,6 +208,7 @@ namespace YuGiOh_TTS_Deck_Builder
             {
                 // Generate Deck
                 ObjectState sideDeckObjectState = await generateDeck(strSideDeckCards, strBackCard);
+                sideDeckObjectState.Transform.posX = -8;
 
                 // Add ObjectState object to TTS object.
                 tts.ObjectStates.Add(sideDeckObjectState);
