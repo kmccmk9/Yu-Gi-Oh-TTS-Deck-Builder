@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.NetworkInformation;
@@ -9,6 +10,7 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Windows.Foundation;
 using Windows.Graphics.Imaging;
+using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
 using Windows.UI.ViewManagement;
@@ -197,6 +199,7 @@ namespace YuGiOh_TTS_Deck_Builder
             {
                 // Generate Deck
                 ObjectState extraDeckObjectState = await generateDeck(strExtraDeckCards, strBackCard);
+                extraDeckObjectState.Transform.posX = -4;
 
                 // Add ObjectState object to TTS object.
                 tts.ObjectStates.Add(extraDeckObjectState);
@@ -205,6 +208,7 @@ namespace YuGiOh_TTS_Deck_Builder
             {
                 // Generate Deck
                 ObjectState sideDeckObjectState = await generateDeck(strSideDeckCards, strBackCard);
+                sideDeckObjectState.Transform.posX = -8;
 
                 // Add ObjectState object to TTS object.
                 tts.ObjectStates.Add(sideDeckObjectState);
@@ -320,23 +324,27 @@ namespace YuGiOh_TTS_Deck_Builder
 
         /// <summary>
         /// Method to return a Tuple representing the rows and columns represented in the WriteableBitmap. 
-        /// If the rows is more than 1, columns are automatically 7. Columns can be less when the number of rows is 1.
+        /// If the rows is more than 1, columns are automatically 5. Columns can be less when the number of rows is 1.
         /// </summary>
         /// <param name="strDeckCardIds">List of string representing the card Ids.</param>
         /// <returns>Tuple representing rows,columns of the WriteableBitmap.</returns>
         private Tuple<int, int> getDeckSize(List<string> strDeckCardIds)
         {
+            // Get a list of unique card IDs as the final image should only have each card appear once.
+            strDeckCardIds = strDeckCardIds.Distinct().ToList();
+
             int intTotalCards = strDeckCardIds.Count;
             int remainder = 0;
-            if (intTotalCards / 7.0 < 1)
+            double cols = 5;
+            if (intTotalCards / cols < 1)
             {
-                remainder = intTotalCards % 7;
+                remainder = intTotalCards % (int)cols;
             }
             else
             {
-                remainder = 7;
+                remainder = (int)cols;
             }
-            int rows = (int)Math.Ceiling(intTotalCards / 7.0);
+            int rows = (int)Math.Ceiling(intTotalCards / cols);
             return new Tuple<int, int>(rows, remainder);
         }
 
@@ -371,9 +379,9 @@ namespace YuGiOh_TTS_Deck_Builder
         /// <summary>
         /// Method to upload provided WriteableBitmap to Imgur.
         /// </summary>
-        /// <param name="imageBitmap">WriteableBitmap to upload.</param>
+        /// <param name="imageBitmap">Memory Access Stream of the image to upload.</param>
         /// <returns>String representing the direct image url for the uploaded image.</returns>
-        private async Task<string> uploadPhotoToImgur(WriteableBitmap imageBitmap)
+        private async Task<string> uploadPhotoToImgur(IRandomAccessStream imageBitmap)
         {
             using (var client = new HttpClient())
             {
@@ -381,7 +389,13 @@ namespace YuGiOh_TTS_Deck_Builder
                 using (var content =
                     new MultipartFormDataContent("Upload----" + DateTime.Now.ToString(CultureInfo.InvariantCulture)))
                 {
-                    content.Add(new ByteArrayContent(await EncodeJpeg(imageBitmap)), "image", "deck.jpg");
+                    // Convert to bytes
+                    DataReader dr = new DataReader(imageBitmap.GetInputStreamAt(0));
+                    byte[] bytes = new byte[imageBitmap.Size];
+                    await dr.LoadAsync((uint)imageBitmap.Size);
+                    dr.ReadBytes(bytes);
+
+                    content.Add(new ByteArrayContent(bytes), "image", "deck.jpg");
 
                     client.DefaultRequestHeaders.Add("Authorization", "Client-ID " + _imgur_client_id);
                     using (var message = await client.PostAsync("https://api.imgur.com/3/upload", content))
@@ -389,7 +403,8 @@ namespace YuGiOh_TTS_Deck_Builder
                         if (message.IsSuccessStatusCode)
                         {
                             // Read HTTP POST response into the Imgur object.
-                            Imgur imgurResponse = JsonConvert.DeserializeObject<Imgur>(await message.Content.ReadAsStringAsync());
+                            string jsonString = await message.Content.ReadAsStringAsync();
+                            Imgur imgurResponse = JsonConvert.DeserializeObject<Imgur>(jsonString, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
                             return imgurResponse.data.link;
                         }
@@ -441,13 +456,16 @@ namespace YuGiOh_TTS_Deck_Builder
         /// <returns>A WriteableBitmap representing the combined image of cards.</returns>
         private async Task<WriteableBitmap> generateWriteableBitmapForDeck(List<string> strDeckCardIds)
         {
+            // Get a list of unique card IDs as the final image should only have each card appear once.
+            strDeckCardIds = strDeckCardIds.Distinct().ToList();
+
             // Calculate final image size based on how many cards we have in our list.
             int intTotalCards = strDeckCardIds.Count;
-            int remainder = intTotalCards % 7;
-            int rows = (int)Math.Ceiling(intTotalCards / 7.0);
+            double cols = 5;
+            int rows = (int)Math.Ceiling(intTotalCards / cols);
 
             // Create out empty WriteableBitmap.
-            var finalWriteableBitmap = new WriteableBitmap(7 * 421, rows * 614);
+            var finalWriteableBitmap = new WriteableBitmap((int)cols * 421, rows * 614);
 
             // Track which column and row we are in.
             int intColumn = 0;
@@ -468,14 +486,21 @@ namespace YuGiOh_TTS_Deck_Builder
                     using (HttpResponseMessage response = await client.GetAsync(strCardFrontBaseUrl + strDeckCard + ".jpg"))
                     {
                         var image = await BitmapFactory.FromStream(await response.Content.ReadAsStreamAsync());
+                        byte[] pixels;
+                        Guid BitmapEncoderGuid = BitmapEncoder.JpegEncoderId;
+                        using (Stream stream = image.PixelBuffer.AsStream())
+                        {
+                            pixels = new byte[(uint)stream.Length];
+                            await stream.ReadAsync(pixels, 0, pixels.Length);
+                        }
 
                         // Specify x and y of where to insert into final WriteableImage from column and row.
                         int x = intColumn * 421;
                         int y = intRow * 614;
 
                         // Combine images.
-                        finalWriteableBitmap.Blit(new Rect(x, y, image.PixelWidth, image.PixelHeight), image, new Rect(0, 0, image.PixelWidth, image.PixelHeight));
-                        if (++intColumn >= 7)
+                        finalWriteableBitmap.Blit(new Rect(x, y, image.PixelWidth, image.PixelHeight), image, new Rect(0, 0, image.PixelWidth, image.PixelHeight), WriteableBitmapExtensions.BlendMode.None);
+                        if (++intColumn >= cols)
                         {
                             // Reset column and increment row
                             intColumn = 0;
@@ -497,21 +522,35 @@ namespace YuGiOh_TTS_Deck_Builder
         private async Task<ObjectState> generateDeck(List<string> deckCardIds, string strBackCard)
         {
             // Generate WriteableBitmaps for deck.
+            Guid BitmapEncoderGuid = BitmapEncoder.JpegEncoderId;
             WriteableBitmap deckBitmap = await generateWriteableBitmapForDeck(deckCardIds);
+            //var file = await Windows.Storage.ApplicationData.Current.TemporaryFolder.CreateFileAsync("combine.jpg", CreationCollisionOption.ReplaceExisting);
+            using (IRandomAccessStream stream = new InMemoryRandomAccessStream())//await file.OpenAsync(FileAccessMode.ReadWrite))
+            {
+                BitmapPropertySet propertySet = new BitmapPropertySet();
+                BitmapTypedValue quality = new BitmapTypedValue(1.0, PropertyType.Single);
+                propertySet.Add("ImageQuality", quality);
+                BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoderGuid, stream, propertySet);
+                Stream pixelStream = deckBitmap.PixelBuffer.AsStream();
+                byte[] pixels = new byte[pixelStream.Length];
+                await pixelStream.ReadAsync(pixels, 0, pixels.Length);
+                encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore, (uint)deckBitmap.PixelWidth, (uint)deckBitmap.PixelHeight, 96, 96, pixels);
+                await encoder.FlushAsync();
 
-            // Get list of card names for deck.
-            List<string> deckCardNames = await generateCardNamesForDeck(deckCardIds);
+                // Upload WriteableBitmaps to Imgur and save their direct urls (requires Imgur API).
+                string deckUrl = await uploadPhotoToImgur(stream);
 
-            // Upload WriteableBitmaps to Imgur and save their direct urls (requires Imgur API).
-            string deckUrl = await uploadPhotoToImgur(deckBitmap);
+                // Get list of card names for deck.
+                List<string> deckCardNames = await generateCardNamesForDeck(deckCardIds);
 
-            // Get the number of rows and columns that are in the WriteableBitmap.
-            Tuple<int, int> deckSize = getDeckSize(deckCardIds);
+                // Get the number of rows and columns that are in the WriteableBitmap.
+                Tuple<int, int> deckSize = getDeckSize(deckCardIds);
 
-            // Build out ObjectState objects for deck.
-            ObjectState deckObjectState = buildObjectState(deckCardIds, deckSize, deckUrl, strBackCard, deckCardNames, 1);
+                // Build out ObjectState objects for deck.
+                ObjectState deckObjectState = buildObjectState(deckCardIds, deckSize, deckUrl, strBackCard, deckCardNames, 1);
 
-            return deckObjectState;
+                return deckObjectState;
+            }
         }
 
         /// <summary>
