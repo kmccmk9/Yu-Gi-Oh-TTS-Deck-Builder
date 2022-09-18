@@ -110,7 +110,7 @@ namespace YuGiOh_TTS_Deck_Builder
             YDKParts currentPart = YDKParts.unknown;
             for (int i = 0; i < strYDKLines.Count; i++)
             {
-                string strCurrentLine = strYDKLines[i];
+                string strCurrentLine = strYDKLines[i].Trim();
                 if (strCurrentLine == "#main")
                 {
                     // Set tracking variable to main deck.
@@ -398,6 +398,10 @@ namespace YuGiOh_TTS_Deck_Builder
                     content.Add(new ByteArrayContent(bytes), "image", "deck.jpg");
 
                     client.DefaultRequestHeaders.Add("Authorization", "Client-ID " + _imgur_client_id);
+
+                    // Disable Expect 100 Header because Imgur API chokes on it.
+                    client.DefaultRequestHeaders.ExpectContinue = false;
+
                     using (var message = await client.PostAsync("https://api.imgur.com/3/upload", content))
                     {
                         if (message.IsSuccessStatusCode)
@@ -528,7 +532,7 @@ namespace YuGiOh_TTS_Deck_Builder
             using (IRandomAccessStream stream = new InMemoryRandomAccessStream())//await file.OpenAsync(FileAccessMode.ReadWrite))
             {
                 BitmapPropertySet propertySet = new BitmapPropertySet();
-                BitmapTypedValue quality = new BitmapTypedValue(1.0, PropertyType.Single);
+                BitmapTypedValue quality = new BitmapTypedValue(0.8, PropertyType.Single);
                 propertySet.Add("ImageQuality", quality);
                 BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoderGuid, stream, propertySet);
                 Stream pixelStream = deckBitmap.PixelBuffer.AsStream();
